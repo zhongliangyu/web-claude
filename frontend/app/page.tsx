@@ -3,9 +3,14 @@
 import { useState, useRef, useEffect } from 'react'
 import { CodeBlock } from './components/CodeBlock'
 
+interface SSEData {
+  content?: string
+  error?: string
+}
+
 interface SSEEvent {
   event: 'thinking' | 'tool' | 'output' | 'error' | 'done'
-  data: { content?: string; error?: string }
+  data: SSEData
 }
 
 type ContentType = 'thinking' | 'tool' | 'output'
@@ -80,7 +85,7 @@ export default function Page() {
           // 解析数据行
           if (line.startsWith('data: ')) {
             try {
-              const data: SSEEvent['data'] = JSON.parse(line.slice(6).trim())
+              const data: SSEData = JSON.parse(line.slice(6).trim())
 
               if (currentEventType === 'done') {
                 setLoading(false)
@@ -101,29 +106,30 @@ export default function Page() {
                   newMsg[newMsg.length - 1].contents.push({
                     type: 'output',
                     content: `❌ ${data.error}`
+                  })
+                  return newMsg
                 })
-                return newMsg
-              })
-              setLoading(false)
-              break
-            }
+                setLoading(false)
+                break
+              }
 
-            if (event.data.content) {
-              setMessages(prev => {
-                const newMsg = [...prev]
-                const lastMsg = newMsg[newMsg.length - 1]
+              if (data.content) {
+                setMessages(prev => {
+                  const newMsg = [...prev]
+                  const lastMsg = newMsg[newMsg.length - 1]
 
-                // 如果类型变化，添加新段落
-                if (lastMsg.contents.length === 0 || lastMsg.contents[lastMsg.contents.length - 1].type !== currentType) {
-                  lastMsg.contents.push({ type: currentType, content: event.data.content || '' })
-                } else {
-                  lastMsg.contents[lastMsg.contents.length - 1].content += event.data.content || ''
-                }
-                return newMsg
-              })
+                  // 如果类型变化，添加新段落
+                  if (lastMsg.contents.length === 0 || lastMsg.contents[lastMsg.contents.length - 1].type !== currentType) {
+                    lastMsg.contents.push({ type: currentType, content: data.content || '' })
+                  } else {
+                    lastMsg.contents[lastMsg.contents.length - 1].content += data.content || ''
+                  }
+                  return newMsg
+                })
+              }
+            } catch {
+              // 忽略解析错误
             }
-          } catch (e) {
-            // 忽略解析错误
           }
         }
       }
