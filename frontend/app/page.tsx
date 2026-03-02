@@ -57,6 +57,7 @@ export default function Page() {
 
       let buffer = ''
       let currentType: ContentType = 'output'
+      let currentEventType: string = 'output'
 
       while (true) {
         const { done, value } = await reader.read()
@@ -67,31 +68,39 @@ export default function Page() {
         buffer = lines.pop() || ''
 
         for (const line of lines) {
-          if (!line.startsWith('data: ')) continue
+          // 跳过空行
+          if (!line.trim()) continue
 
-          try {
-            const event: SSEEvent = JSON.parse(line.slice(6))
-            const eventType = line.split('\n')[0]?.replace('event: ', '') || 'output'
+          // 解析事件类型
+          if (line.startsWith('event: ')) {
+            currentEventType = line.slice(7).trim()
+            continue
+          }
 
-            if (eventType === 'done') {
-              setLoading(false)
-              break
-            }
+          // 解析数据行
+          if (line.startsWith('data: ')) {
+            try {
+              const data: SSEEvent['data'] = JSON.parse(line.slice(6).trim())
 
-            if (event.event === 'thinking') {
-              currentType = 'thinking'
-            } else if (event.event === 'tool') {
-              currentType = 'tool'
-            } else if (event.event === 'output') {
-              currentType = 'output'
-            }
+              if (currentEventType === 'done') {
+                setLoading(false)
+                break
+              }
 
-            if (event.event === 'error') {
-              setMessages(prev => {
-                const newMsg = [...prev]
-                newMsg[newMsg.length - 1].contents.push({
-                  type: 'output',
-                  content: `❌ ${event.data.error}`
+              if (currentEventType === 'thinking') {
+                currentType = 'thinking'
+              } else if (currentEventType === 'tool') {
+                currentType = 'tool'
+              } else if (currentEventType === 'output') {
+                currentType = 'output'
+              }
+
+              if (currentEventType === 'error') {
+                setMessages(prev => {
+                  const newMsg = [...prev]
+                  newMsg[newMsg.length - 1].contents.push({
+                    type: 'output',
+                    content: `❌ ${data.error}`
                 })
                 return newMsg
               })
