@@ -56,16 +56,20 @@ async def stream_claude_output(message: str, workspace: str = WORKSPACE_PATH, cl
     try:
         # 清除 CLAUDECODE 环境变量，避免嵌套会话
         env = {**os.environ, "CLAUDE_COLOR": "false"}
-        # 确保移除 CLAUDECODE
-        if "CLAUDECODE" in env:
-            del env["CLAUDECODE"]
+        # 确保移除 CLAUDECODE 和其他 Claude 环境变量
+        for key in list(env.keys()):
+            if "CLAUDE" in key.upper():
+                del env[key]
+
+        print(f"🔧 启动命令: {cmd}")
+        print(f"🔧 工作目录: {workdir}")
+        print(f"🔧 CLAUDECODE 已清除: {'CLAUDECODE' not in env}")
 
         proc = subprocess.Popen(
             cmd,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
-            bufsize=1,
             cwd=workdir,
             env=env
         )
