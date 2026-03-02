@@ -44,7 +44,7 @@ export default function Page() {
     setMessages(prev => [...prev, { role: 'assistant', contents: [] }])
 
     try {
-      const response = await fetch('http://localhost:8000/chat', {
+      const response = await fetch('http://14.145.223.89:9002/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message: userMessage })

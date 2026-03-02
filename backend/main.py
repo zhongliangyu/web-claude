@@ -14,7 +14,6 @@ from typing import AsyncGenerator
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel
 import uvicorn
 
 # 配置
@@ -33,14 +32,7 @@ app.add_middleware(
 )
 
 
-class ChatRequest(BaseModel):
-    """聊天请求"""
-    message: str
-    workspace: str = WORKSPACE_PATH
-    claude_path: str = CLAUDE_CODE_PATH
-
-
-async def stream_claude_output(req: ChatRequest) -> AsyncGenerator[str, None]:
+async def stream_claude_output(message: str, workspace: str = WORKSPACE_PATH, claude_path: str = CLAUDE_CODE_PATH) -> AsyncGenerator[str, None]:
     """
     流式调用 Claude Code，输出 SSE 事件
 
@@ -51,17 +43,21 @@ async def stream_claude_output(req: ChatRequest) -> AsyncGenerator[str, None]:
     - error: 错误
     - done: 完成
     """
-    print(f"📨 收到请求: {req.message[:50]}...")
+    print(f"📨 收到请求: {message[:50]}...")
 
-    workdir = req.workspace.replace("~", str(Path.home()))
-    claude_path = req.claude_path
+    workdir = workspace.replace("~", str(Path.home()))
+    claude_path = claude_path
 
     # 确保 workdir 存在
     Path(workdir).mkdir(parents=True, exist_ok=True)
 
-    cmd = [claude_path, "-p", req.message]
+    cmd = [claude_path, "-p", message]
 
     try:
+        # 清除 CLAUDECODE 环境变量，避免嵌套会话
+        env = {**os.environ, "CLAUDE_COLOR": "false"}
+        env.pop("CLAUDECODE", None)
+
         proc = subprocess.Popen(
             cmd,
             stdout=subprocess.PIPE,
@@ -69,7 +65,7 @@ async def stream_claude_output(req: ChatRequest) -> AsyncGenerator[str, None]:
             text=True,
             bufsize=1,
             cwd=workdir,
-            env={**os.environ, "CLAUDE_COLOR": "false"}
+            env=env
         )
 
         buffer = ""
@@ -126,12 +122,16 @@ async def health():
 
 
 @app.post("/chat")
-async def chat(req: ChatRequest):
+async def chat(req: dict):
     """
     聊天接口 (SSE 流式输出)
     """
+    message = req.get("message", "")
+    workspace = req.get("workspace", WORKSPACE_PATH)
+    claude_path = req.get("claude_path", CLAUDE_CODE_PATH)
+
     return StreamingResponse(
-        stream_claude_output(req),
+        stream_claude_output(message, workspace, claude_path),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",
@@ -142,4 +142,4 @@ async def chat(req: ChatRequest):
 
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=8002)
